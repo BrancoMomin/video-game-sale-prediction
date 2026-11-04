@@ -1,10 +1,12 @@
 import os
 import sys
+from typing import cast
+
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-from src.logger import logging
 from src.exception import CustomException
+from src.logger import logging
 
 
 class DataIngestion:
@@ -17,11 +19,12 @@ class DataIngestion:
         try:
             logging.info("Starting data ingestion")
 
-            df = pd.read_csv("data/raw/vgsales.csv")
+            df: pd.DataFrame = pd.read_csv("data/raw/vgsales.csv")
 
-            logging.info(
-                f"Loaded {df.shape[0]} rows and {df.shape[1]} columns"
-            )
+            if df.empty:
+                raise ValueError("Dataset is empty")
+
+            logging.info(f"Loaded {df.shape[0]} rows and {df.shape[1]} columns")
 
             os.makedirs("artifacts", exist_ok=True)
 
@@ -29,10 +32,10 @@ class DataIngestion:
 
             logging.info("Splitting data into train and test sets")
 
-            train_set, test_set = train_test_split(
-                df,
-                test_size=0.2,
-                random_state=42,
+            split_data = train_test_split(df, test_size=0.2, random_state=42)
+
+            train_set, test_set = cast(
+                tuple[pd.DataFrame, pd.DataFrame], tuple(split_data)
             )
 
             train_set.to_csv(self.train_data_path, index=False)
@@ -42,5 +45,11 @@ class DataIngestion:
 
             return self.train_data_path, self.test_data_path
 
-        except Exception as e:
-            raise CustomException(e, sys)
+        except (
+            OSError,
+            ValueError,
+            pd.errors.ParserError,
+            pd.errors.EmptyDataError,
+        ) as e:
+            logging.exception("Error occurred during data ingestion")
+            raise CustomException(e, sys) from e
